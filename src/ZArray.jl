@@ -135,11 +135,7 @@ function getchunkarray(z::ZArray{>:Missing})
   inner = fill(z.metadata.fill_value, z.metadata.chunks)
   a = SenMissArray(inner,z.metadata.fill_value)
 end
-_zero(T) = zero(T)
-_zero(T::Type{<:MaxLengthString}) = T("")
-_zero(T::Type{ASCIIChar}) = ASCIIChar(0)
-_zero(::Type{<:Vector{T}}) where T = T[]
-getchunkarray(z::ZArray) = fill(_zero(eltype(z)), z.metadata.chunks)
+getchunkarray(z::ZArray) = Array{eltype(z)}(undef, z.metadata.chunks...)
 
 maybeinner(a::Array) = a
 maybeinner(a::SenMissArray) = a.x
@@ -254,6 +250,10 @@ Read the chunk specified by `i` from the Zarray `z` and write its content to `a`
 """
 function uncompress_raw!(a,z::ZArray{<:Any,N},curchunk) where N
   if curchunk === nothing
+    @assert eltype(a) == typeof(z.metadata.fill_value) "Type mismatch \
+      between array element of type '$(eltype(a))' \
+      and default value of type '$(typeof(z.metadata.fill_value))'. \
+      Use a different default value."
     fill!(a, z.metadata.fill_value)
   else
     zuncompress!(a, curchunk, z.metadata.compressor, z.metadata.filters)
@@ -355,6 +355,7 @@ function zcreate(::Type{T},storage::AbstractStore,
 end
 
 filterfromtype(::Type{<:Any}) = nothing
+filterfromtype(::Type{<:AbstractString}) = (VLenUTF8Filter(),)
 
 function filterfromtype(::Type{<:AbstractArray{T}}) where T
   #Here we have to apply the vlenarray filter

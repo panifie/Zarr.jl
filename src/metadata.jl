@@ -53,6 +53,7 @@ Base.zero(t::Union{DateTime64, Type{<:DateTime64}}) = t(0)
 
 
 typestr(t::Type) = string('<', 'V', sizeof(t))
+typestr(t::Type{<:AbstractString}) = string('<', 'O')
 typestr(t::Type{>:Missing}) = typestr(Base.nonmissingtype(t))
 typestr(t::Type{Bool}) = string('<', 'b', sizeof(t))
 typestr(t::Type{<:Signed}) = string('<', 'i', sizeof(t))
@@ -63,6 +64,7 @@ typestr(::Type{MaxLengthString{N,UInt32}}) where N = string('<', 'U', N)
 typestr(::Type{MaxLengthString{N,UInt8}}) where N = string('<', 'S', N)
 typestr(::Type{<:Array}) = "|O"
 typestr(::Type{<:DateTime64{P}}) where P = "<M8[$(pdt64string[P])]"
+typestr(t::Type{Union{Nothing, T}}) where T = typestr(T)
 
 const typestr_regex = r"^([<|>])([tbiufcmMOSUV])(\d*)(\[\w+\])?$"
 const typemap = Dict{Tuple{Char, Int}, DataType}(
@@ -96,7 +98,7 @@ function typestr(s::AbstractString, filterlist=nothing)
             if filterlist === nothing
                 throw(ArgumentError("Object array can only be parsed when an appropriate filter is defined"))
             end
-            return Vector{sourcetype(first(filterlist))}
+            return sourcetype(first(filterlist))
         end
         isempty(typesize) && throw((ArgumentError("$s is not a valid numpy typestr")))
         tc, ts = first(typecode), parse(Int, typesize)

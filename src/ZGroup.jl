@@ -19,6 +19,10 @@ function ZGroup(s::T,mode="r",path="";fill_as_missing=false) where T <: Abstract
   groups = Dict{String, ZGroup}()
 
   for d in subdirs(s,path)
+    @debug if d == path
+      @warn "Store is corrupted, probably has keys starting with '/' (it should not!)."
+      continue
+    end
     dshort = split(d,'/')[end]
     m = zopen_noerr(s,mode,path=_concatpath(path,dshort),fill_as_missing=fill_as_missing)
     if isa(m, ZArray)

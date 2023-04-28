@@ -27,17 +27,20 @@ Encodes and decodes variable-length arrays of arbitrary data type
 """
 struct VLenArrayFilter{T} <: Filter{T,UInt8} end
 
-function zdecode(ain, ::VLenArrayFilter{T}) where T
+function _zdecode(ain, E::Type)
     f = IOBuffer(ain)
     nitems = read(f, UInt32)
-    out = Array{Vector{T}}(undef,nitems)
+    out = Array{Vector{E}}(undef,nitems)
     for i=1:nitems
         len1 = read(f,UInt32)
-        out[i] = read!(f,Array{T}(undef,len1 ÷ sizeof(T)))
+        out[i] = read!(f,Array{E}(undef,len1 ÷ sizeof(E)))
     end
     close(f)
     out
 end
+
+zdecode(ain, ::VLenArrayFilter{T}) where T <: AbstractArray{E} where E = _zdecode(ain, E)
+zdecode(ain, ::VLenArrayFilter{V}) where V = _zdecode(ain, V)
 
 #Encodes Array of Vectors a into bytes
 function zencode(ain,::VLenArrayFilter)
@@ -51,8 +54,46 @@ function zencode(ain,::VLenArrayFilter)
     take!(b)
 end
 
-JSON.lower(::VLenArrayFilter{T}) where T = Dict("id"=>"vlen-array","dtype"=> typestr(T) )
+JSON.lower(::VLenArrayFilter{T}) where T = Dict("id"=>"vlen-array","dtype"=> typestr(eltype(T)) )
 
-getfilter(::Type{<:VLenArrayFilter}, f) = VLenArrayFilter{typestr(f["dtype"])}()
+getfilter(::Type{<:VLenArrayFilter}, f) = VLenArrayFilter{Vector{typestr(f["dtype"])}}()
 
-filterdict = Dict("vlen-array"=>VLenArrayFilter)
+"""
+    VLenUTF8Filter
+
+Encodes and decodes variable-length arrays of arbitrary data type
+"""
+struct VLenUTF8Filter <: Filter{String,UInt8} end
+
+function zdecode(ain, ::VLenUTF8Filter)
+    arbuf = UInt8[]
+    f = IOBuffer(ain)
+    nitems = read(f, UInt32)
+    out = Array{String}(undef,nitems)
+    for i=1:nitems
+        len1 = read(f,UInt32)
+        resize!(arbuf,len1)
+        read!(f,arbuf)
+        out[i] = String(arbuf)
+    end
+    close(f)
+    out
+end
+
+#Encodes Array of Vectors a into bytes
+function zencode(ain,::VLenUTF8Filter)
+    b = IOBuffer()
+    nitems = length(ain)
+    write(b,UInt32(nitems))
+    for a in ain
+        write(b, UInt32(sizeof(a)))
+        write(b, a)
+    end
+    take!(b)
+end
+
+JSON.lower(::VLenUTF8Filter) = Dict("id"=>"vlen-utf8","dtype"=> "|O" )
+
+getfilter(::Type{<:VLenUTF8Filter}, f) = VLenUTF8Filter()
+
+const filterdict = Dict("vlen-array"=>VLenArrayFilter, "vlen-utf8"=>VLenUTF8Filter)
